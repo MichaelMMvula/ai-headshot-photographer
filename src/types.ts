@@ -18,6 +18,13 @@ export interface CustomizationOptions {
   customPrompt: string;
 }
 
+export interface HeadshotVariation {
+  id: string;
+  title: string;
+  subtitle: string;
+  imageUrl: string;
+}
+
 export interface GeneratedHeadshot {
   id: string;
   imageUrl: string;
@@ -30,4 +37,5 @@ export interface GeneratedHeadshot {
   aspectRatio: string;
   createdAt: number;
   promptNotes?: string;
+  variations?: HeadshotVariation[];
 }

@@ -36,6 +36,7 @@ export default function App() {
   const [customOptions, setCustomOptions] = useState<CustomizationOptions>(INITIAL_OPTIONS);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRefining, setIsRefining] = useState(false);
+  const [isGeneratingVariations, setIsGeneratingVariations] = useState(false);
   const [activeHeadshot, setActiveHeadshot] = useState<GeneratedHeadshot | null>(null);
   const [history, setHistory] = useState<GeneratedHeadshot[]>([]);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
@@ -55,6 +56,26 @@ export default function App() {
       expression: 'Confident & Warm Smile',
       aspectRatio: '1:1',
       createdAt: Date.now() - 3600000,
+      variations: [
+        {
+          id: 'seed-var-1',
+          title: 'Take 1: Warm & Friendly Smile',
+          subtitle: 'Softbox Fill & Relaxed Expression',
+          imageUrl: '/src/assets/images/style_corporate_grey_1793188801210.jpg',
+        },
+        {
+          id: 'seed-var-2',
+          title: 'Take 2: Sculpted Rembrandt Key',
+          subtitle: '15° Subtle Angle & Cheekbone Lighting',
+          imageUrl: '/src/assets/images/style_tech_office_1793188803047.jpg',
+        },
+        {
+          id: 'seed-var-3',
+          title: 'Take 3: Radiant Catchlights',
+          subtitle: 'Crisp Eye Catchlights & Golden Hair Rim',
+          imageUrl: '/src/assets/images/style_outdoor_natural_1793188802006.jpg',
+        },
+      ],
     };
     setActiveHeadshot(seedHeadshot);
     setHistory([seedHeadshot]);
@@ -132,6 +153,9 @@ export default function App() {
       setTimeout(() => {
         document.getElementById('result-view')?.scrollIntoView({ behavior: 'smooth' });
       }, 300);
+
+      // Automatically generate 3 slight variations once headshot is successfully generated
+      triggerVariations(newHeadshot);
     } catch (err: any) {
       console.error('Generation error:', err);
       setErrorMessage(err.message || 'An unexpected error occurred during generation.');
@@ -140,6 +164,56 @@ export default function App() {
       setIsGenerating(false);
       setGenerationStage('');
     }
+  };
+
+  const triggerVariations = async (targetHeadshot: GeneratedHeadshot) => {
+    setIsGeneratingVariations(true);
+    try {
+      const res = await fetch('/api/generate-variations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: targetHeadshot.originalSelfieUrl || selfieBase64,
+          headshotBase64: targetHeadshot.imageUrl,
+          styleId: targetHeadshot.styleId,
+          aspectRatio: targetHeadshot.aspectRatio,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.variations?.length > 0) {
+        setActiveHeadshot((prev) => {
+          if (!prev || prev.id !== targetHeadshot.id) return prev;
+          return {
+            ...prev,
+            variations: data.variations,
+          };
+        });
+        setHistory((prev) =>
+          prev.map((item) =>
+            item.id === targetHeadshot.id
+              ? { ...item, variations: data.variations }
+              : item
+          )
+        );
+      }
+    } catch (err) {
+      console.warn('Background variations generation encountered notice:', err);
+    } finally {
+      setIsGeneratingVariations(false);
+    }
+  };
+
+  const handleSelectVariation = (selectedImageUrl: string) => {
+    if (!activeHeadshot) return;
+    const updated = {
+      ...activeHeadshot,
+      imageUrl: selectedImageUrl,
+    };
+    setActiveHeadshot(updated);
+    setHistory((prev) =>
+      prev.map((item) => (item.id === activeHeadshot.id ? updated : item))
+    );
   };
 
   const handleRefine = async (instruction: string) => {
@@ -312,6 +386,9 @@ export default function App() {
                 onRefine={handleRefine}
                 isRefining={isRefining}
                 onOpenLightbox={(img) => setLightboxImage(img)}
+                onSelectVariation={handleSelectVariation}
+                onGenerateVariations={() => triggerVariations(activeHeadshot)}
+                isGeneratingVariations={isGeneratingVariations}
               />
             )}
 

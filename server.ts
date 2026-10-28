@@ -255,6 +255,128 @@ app.post('/api/refine-headshot', async (req, res) => {
   }
 });
 
+// Generate 3 subtle variations (different smiles and lighting angles) of the same style
+app.post('/api/generate-variations', async (req, res) => {
+  try {
+    const {
+      imageBase64,
+      headshotBase64,
+      styleId = 'corporate-grey',
+      aspectRatio = '1:1',
+      model = 'gemini-nano-banana-2.1',
+    } = req.body;
+
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
+    }
+
+    const selectedStyle = STYLE_PROMPTS[styleId] || STYLE_PROMPTS['corporate-grey'];
+
+    const variationConfigs = [
+      {
+        id: 'take-1',
+        title: 'Take 1: Warm & Approachable Smile',
+        subtitle: 'Softbox Fill & Relaxed Expression',
+        promptDelta:
+          'Subtle variation 1: Warm, friendly, authentic approachable smile with relaxed shoulders, welcoming direct eye contact, and even soft flattering studio lighting.',
+      },
+      {
+        id: 'take-2',
+        title: 'Take 2: Sculpted Rembrandt Key',
+        subtitle: '15° Subtle Angle & Cheekbone Lighting',
+        promptDelta:
+          'Subtle variation 2: Confident poised executive expression with gentle subtle smile, slight 15-degree head angle, and classic Rembrandt portrait key lighting sculpting the cheekbones.',
+      },
+      {
+        id: 'take-3',
+        title: 'Take 3: Radiant Catchlights',
+        subtitle: 'Crisp Eye Catchlights & Golden Hair Rim',
+        promptDelta:
+          'Subtle variation 3: Engaging, forward-thinking charismatic gaze with radiant crisp catchlights in the eyes, subtle golden hair rim separation light, and clean modern contrast.',
+      },
+    ];
+
+    const sourceImage = imageBase64 || headshotBase64;
+    const imagePart = sourceImage ? parseImageData(sourceImage) : null;
+
+    const generateSingleVariation = async (config: (typeof variationConfigs)[0]) => {
+      const parts: any[] = [];
+      if (imagePart) {
+        parts.push({
+          inlineData: {
+            mimeType: imagePart.mimeType,
+            data: imagePart.data,
+          },
+        });
+        parts.push({
+          text: `You are an expert commercial portrait photographer. Using this reference photo, produce a studio portrait in the style of "${selectedStyle.title}": ${selectedStyle.prompt}. Apply this specific take variation: ${config.promptDelta}. Strictly preserve the subject's recognizable facial identity, skin tone, and authentic features.`,
+        });
+      } else {
+        parts.push({
+          text: `Master-grade professional portrait headshot photography in "${selectedStyle.title}": ${selectedStyle.prompt}. Variation: ${config.promptDelta}.`,
+        });
+      }
+
+      const response = await ai.models.generateContent({
+        model,
+        contents: { parts },
+        config: {
+          imageConfig: {
+            aspectRatio: aspectRatio as any,
+            imageSize: '1K',
+          },
+        },
+      });
+
+      let imgUrl: string | null = null;
+      const candidate = response.candidates?.[0];
+      if (candidate?.content?.parts) {
+        for (const part of candidate.content.parts) {
+          if (part.inlineData?.data) {
+            const mime = part.inlineData.mimeType || 'image/png';
+            imgUrl = `data:${mime};base64,${part.inlineData.data}`;
+            break;
+          }
+        }
+      }
+
+      return {
+        id: config.id,
+        title: config.title,
+        subtitle: config.subtitle,
+        imageUrl: imgUrl,
+      };
+    };
+
+    // Run the 3 variations concurrently
+    const settled = await Promise.allSettled(
+      variationConfigs.map((cfg) => generateSingleVariation(cfg))
+    );
+
+    const successfulVariations = settled
+      .filter(
+        (result): result is PromiseFulfilledResult<{ id: string; title: string; subtitle: string; imageUrl: string | null }> =>
+          result.status === 'fulfilled' && !!result.value.imageUrl
+      )
+      .map((result) => result.value);
+
+    if (successfulVariations.length === 0) {
+      return res.status(502).json({
+        error: 'Unable to render variations at this moment. Please try again.',
+      });
+    }
+
+    res.json({
+      success: true,
+      variations: successfulVariations,
+      timestamp: Date.now(),
+    });
+  } catch (err: any) {
+    console.error('Error in /api/generate-variations:', err);
+    res.status(500).json({ error: err.message || 'Failed to generate variations.' });
+  }
+});
+
 // Dev server / production static handling
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {

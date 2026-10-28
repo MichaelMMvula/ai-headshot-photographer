@@ -6,15 +6,17 @@ import {
   Download,
   Eye,
   FileImage,
+  Layers,
   Maximize2,
   RefreshCw,
   Send,
   Share2,
   Sliders,
   Sparkles,
+  Star,
   X,
 } from 'lucide-react';
-import { GeneratedHeadshot } from '../types';
+import { GeneratedHeadshot, HeadshotVariation } from '../types';
 import { BeforeAfterSlider } from './BeforeAfterSlider';
 import { SAMPLE_SELFIE_URL } from '../data/styles';
 
@@ -24,6 +26,9 @@ interface HeadshotResultProps {
   onRefine: (instruction: string) => Promise<void>;
   isRefining: boolean;
   onOpenLightbox: (imageUrl: string) => void;
+  onSelectVariation?: (imageUrl: string) => void;
+  onGenerateVariations?: () => Promise<void>;
+  isGeneratingVariations?: boolean;
 }
 
 export const HeadshotResult: React.FC<HeadshotResultProps> = ({
@@ -32,6 +37,9 @@ export const HeadshotResult: React.FC<HeadshotResultProps> = ({
   onRefine,
   isRefining,
   onOpenLightbox,
+  onSelectVariation,
+  onGenerateVariations,
+  isGeneratingVariations = false,
 }) => {
   const [viewMode, setViewMode] = useState<'slider' | 'single' | 'side-by-side'>('slider');
   const [toggleState, setToggleState] = useState<'after' | 'before'>('after');
@@ -351,6 +359,136 @@ export const HeadshotResult: React.FC<HeadshotResultProps> = ({
                 Switch to {toggleState === 'after' ? 'Original' : 'Headshot'}
               </button>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* 3 Variations & Takes Section */}
+      <div className="pt-6 border-t border-slate-800 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-bold text-white">
+              <Layers className="w-4 h-4 text-amber-400" />
+              <span>Studio Takes & Nuance Variations</span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Compare 3 subtle variations with different smiles, eye catchlights, and lighting angles. Click to select your favorite.
+            </p>
+          </div>
+
+          {onGenerateVariations && (
+            <button
+              type="button"
+              disabled={isGeneratingVariations}
+              onClick={onGenerateVariations}
+              className="self-start sm:self-auto px-3.5 py-2 text-xs font-semibold rounded-lg border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition-colors flex items-center gap-1.5 disabled:opacity-50 shrink-0"
+            >
+              {isGeneratingVariations ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Rendering 3 Takes...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>
+                    {headshot.variations && headshot.variations.length > 0
+                      ? 'Re-render 3 Variations'
+                      : 'Generate 3 Variations'}
+                  </span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
+
+        {isGeneratingVariations && (
+          <div className="p-6 rounded-xl border border-amber-500/30 bg-amber-500/5 text-center space-y-2 animate-pulse">
+            <div className="text-xs font-semibold text-amber-300 flex items-center justify-center gap-2">
+              <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+              <span>Synthesizing 3 subtle lighting and smile takes...</span>
+            </div>
+            <p className="text-[11px] text-slate-400 max-w-md mx-auto">
+              Simulating warm smiles, sculpted Rembrandt cheek highlights, and radiant catchlights while preserving your identity.
+            </p>
+          </div>
+        )}
+
+        {headshot.variations && headshot.variations.length > 0 && !isGeneratingVariations && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {headshot.variations.map((variation, idx) => {
+              const isSelected = headshot.imageUrl === variation.imageUrl;
+              return (
+                <div
+                  key={variation.id || idx}
+                  onClick={() => onSelectVariation?.(variation.imageUrl)}
+                  className={`group relative rounded-xl overflow-hidden border p-3 cursor-pointer transition-all duration-200 flex flex-col justify-between ${
+                    isSelected
+                      ? 'border-amber-400 bg-amber-500/10 shadow-lg shadow-amber-500/10 ring-1 ring-amber-400/50'
+                      : 'border-slate-800 bg-slate-950/60 hover:border-slate-700 hover:bg-slate-900/60'
+                  }`}
+                >
+                  <div className="relative aspect-square w-full rounded-lg overflow-hidden bg-slate-950 mb-3">
+                    <img
+                      src={variation.imageUrl}
+                      alt={variation.title}
+                      className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-300"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent opacity-60" />
+
+                    {isSelected && (
+                      <div className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded bg-amber-400 text-slate-950 font-bold text-[10px] flex items-center gap-1 shadow-md">
+                        <Star className="w-3 h-3 fill-slate-950" />
+                        <span>Favorite</span>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenLightbox(variation.imageUrl);
+                      }}
+                      className="absolute top-2.5 left-2.5 p-1 rounded-md bg-slate-950/80 text-slate-300 hover:text-white"
+                      title="Inspect"
+                    >
+                      <Maximize2 className="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-1 mb-3">
+                    <div className="text-xs font-bold text-white flex items-center justify-between">
+                      <span className="truncate">{variation.title}</span>
+                      <span className="text-[10px] font-mono text-amber-400 shrink-0">Take 0{idx + 1}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 line-clamp-1">{variation.subtitle}</div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectVariation?.(variation.imageUrl);
+                    }}
+                    className={`w-full py-1.5 px-3 text-xs font-semibold rounded-md transition-colors flex items-center justify-center gap-1.5 ${
+                      isSelected
+                        ? 'bg-amber-400 text-slate-950 font-bold'
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-750 hover:text-white'
+                    }`}
+                  >
+                    {isSelected ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                        <span>Selected Favorite</span>
+                      </>
+                    ) : (
+                      <span>Select As Favorite</span>
+                    )}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
