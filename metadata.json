@@ -1,0 +1,8 @@
+{
+  "name": "Lumina AI Headshot Studio",
+  "description": "Transform casual selfies into studio-grade professional corporate, tech office, and outdoor headshots with generative AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
